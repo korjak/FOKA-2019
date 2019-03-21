@@ -1,16 +1,27 @@
+# Copyright 2016 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Class for generating captions from an image-to-text model."""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import logging
-import numpy as np
-import tensorflow as tf
-from flask import Flask, request, jsonify, render_template, send_file, send_from_directory
-from grr.model import ShowAndTellModel
-from vocabulary import Vocabulary
-#from model.caption_generator import CaptionGenerator
 import heapq
 import math
+
+import numpy as np
 
 
 class TopN(object):
@@ -172,71 +183,3 @@ class CaptionGenerator(object):
             complete_captions = partial_caption_beam
 
         return complete_captions.extract(sort=True)
-
-
-FLAGS = tf.flags.FLAGS
-
-tf.flags.DEFINE_string("model", "./show-and-tell.pb", "Model graph def path")
-tf.flags.DEFINE_string("vocab", "./word_counts.txt", "Text file containing the vocabulary.")
-tf.flags.DEFINE_string("port", "5000", "Port of the server.")
-tf.flags.DEFINE_string("host", "localhost", "Host of the server.")
-tf.flags.DEFINE_integer("beam_size", 3, "Size of the beam.")
-tf.flags.DEFINE_integer("max_caption_length", 20, "Maximum length of the generate caption.")
-
-vocab = Vocabulary(vocab_file_path=FLAGS.vocab)
-model = ShowAndTellModel(model_path=FLAGS.model)
-generator = CaptionGenerator(model=model, vocab=vocab, beam_size=FLAGS.beam_size,
-                             max_caption_length=FLAGS.max_caption_length)
-
-logger = logging.getLogger(__name__)
-app = Flask(__name__)
-
-
-@app.route('/api/image-caption/predict', methods=['GET','POST'])
-def caption():
-    if request.method == 'POST':
-        file = request.files['image']
-        image = file.read()
-        captions = generator.beam_search(image)
-        sentences = []
-        for caption in captions:
-            sentence = [vocab.id_to_token(w) for w in caption.sentence[1:-1]]
-            sentences.append((" ".join(sentence), np.exp(caption.logprob)))
-
-        logger.info(sentences)
-        #print(sentences[0][0])
-        #return 'ok'
-        #return jsonify({"captions": sentences})
-        return render_template('index.html',filename = file.filename, var1=sentences[0][0],var2=sentences[0][1],var3=sentences[1][0],var4=sentences[1][1],var5=sentences[2][0],var6=sentences[2][1],)
-    return render_template('index.html', filename = "doggo.jpg")
-@app.route('/get_image')
-def get_image():
-    #route = "./imgs/" + str(request.args.get('filename'))
-#    route = "./imgs/"+str(filename)
-    return send_file("./imgs/"+request.args.get('filename'), mimetype='image/gif')
-
-@app.route('/api/image-caption/dark.css')
-def send_css():
-    return send_file("./templates/dark.css")
-
-# @app.route('/api/image-caption/home.html',methods=['GET','POST'])
-# def send_home():
-#     if request.method == 'POST':
-#         file = request.files['image']
-#         image = file.read()
-#         captions = generator.beam_search(image)
-#         sentences = []
-#         for caption in captions:
-#             sentence = [vocab.id_to_token(w) for w in caption.sentence[1:-1]]
-#             sentences.append((" ".join(sentence), np.exp(caption.logprob)))
-#
-#         logger.info(sentences)
-#         #print(sentences[0][0])
-#         #return 'ok'
-#         #return jsonify({"captions": sentences})
-#         return render_template('index.html',filename = file.filename, var1=sentences[0][0],var2=sentences[0][1],var3=sentences[1][0],var4=sentences[1][1],var5=sentences[2][0],var6=sentences[2][1],)
-#
-#     return render_template("./templates/home.html")
-
-if __name__ == '__main__':
-    app.run(host=FLAGS.host, port=FLAGS.port)
